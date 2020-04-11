@@ -7,6 +7,7 @@
 
   Copyright 2020- Ruby Fumizuki
   https://rubyfmzk.com
+  https://github.com/rubyfmzk/Y2J
   rubyfmzk@gmail.com
 
    ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ*/
