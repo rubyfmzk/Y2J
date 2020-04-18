@@ -1,6 +1,6 @@
 /*ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ
 
-  Y2J ver1.0
+  Y2J ver1.1
   Y2J converts Yaml to Json
 
   Licensed under GNU General Public License v2.0
@@ -14,56 +14,44 @@
 
 var Y2J = function(ymlFile){
   'use strict';
-  var timeStarted = new Date();
+  var startTime = new Date();
   var yml = readFile(ymlFile);
       yml = cleanText(yml);
+      yml = yml.split('\n');
+  var i = -1;
 
-  var divideYml = yml.split('\n---\n');
-  if(divideYml.length == 1){
-    var ymlArray = divideYml[0].split('\n');
-    var i = -1;
-    var indents = [];
-    var anchors = {};
-    var isEnd = false;
-    return createYml(null);
-  }
-  else{
-    var res = [];
-    for(var y = 0; y < divideYml.length; y++){
-      var ymlArray = divideYml[y].split('\n');
-      var i = -1;
-      var indents = [];
-      var anchors = {};
-      var isEnd = false;
+  var json = createYml();
+  var time = new Date().getTime() - startTime;
+  console.log('mili seconds：' + time);
+  return json;
 
-      res.push(createYml(null));
-    }
-    return res;
-  }
-
-  function createYml(option){
-    var type = getLineType(ymlArray[i+1]);
-    var currentRes = getArray(type);
-    indents.unshift(getIndent(ymlArray[i+1]));
+  function createYml(){
+    var type = getLineType(yml[i+1]);
+    var group = type.match("array") ? [] : {};
 
     while(true){
-      i++;
-      if(i >= ymlArray.length){
-        indents.shift();
-        return currentRes;
+      i ++;
+      if(i >= yml.length) return group;
+
+      var line = yml[i];
+      var lineType = getLineType(line);
+      var key = getKey(line);
+      var indent = getIndent(line);
+
+      switch(lineType){
+        case 'array':
+        case 'hash':
+          group = add(group, createYml(), key);
+          break;
+        case 'array_string':
+        case 'hash_string':
+          group = add(group, getVal(line), key);
+          break;
       }
 
-      var line = ymlArray[i];
-      var nextLine = ymlArray[i+1] ? ymlArray[i+1] : "";
-
-      if(type == 'merge') currentRes = putMerge(line, currentRes);
-      if(type == 'array') currentRes = putArray(line, currentRes);
-      if(type == 'hash') currentRes = putHash(line, currentRes, nextLine);
-      if(type == 'string') currentRes = putString(line, currentRes, option);
-
-      if(getIndent(nextLine) < indents[0]){
-        indents.shift();
-        return currentRes;
+      //次は上の階層
+      if(indent > getIndent(yml[i+1])){
+        return group;
       }
     }
   }
@@ -91,6 +79,13 @@ var Y2J = function(ymlFile){
       .replace(/(^|\n)\s*$/g, '');
   }
 
+  function add(group, val, key) {
+    if(group instanceof Array) group.push(val);
+    else group[key] = val;
+
+    return group;
+  }
+
   function getIndent(line){
     if(!line) line = '';
     return line.match(/^\s+/) ? line.match(/^\s+/)[0].length : 0;
@@ -99,102 +94,11 @@ var Y2J = function(ymlFile){
   function getLineType(line){
     if(!line) return 'string';
     var type = '';
-    if(line.match(/^\s*\<\<\:\s/)) return 'merge';
-    if(line.match(/^\s*\-(\s|$)/)) return 'array';
-    if(line.match(/^\s*[^\:]+\:(\s|$)/)) return 'hash';
+    if(line.match(/^\s*\-\s+[^\s]+/)) return 'array_string';
+    if(line.match(/^\s*[^\:]+\:\s+[^\s]+/)) return 'hash_string';
+    if(line.match(/^\s*\-\s*$/)) return 'array';
+    if(line.match(/^\s*[^\:]+\:\s*$/)) return 'hash';
     return 'string';
-  }
-
-  function getArray(type){
-    if(type == 'array') return [];
-    if(type == 'hash') return {};
-    if(type == 'string') return '';
-  }
-
-  function putArray(line, currentRes){
-    var val = getVal(line, 'array');
-    var alias = getAlias(line);
-    var option = getOptionOfString(line);
-    var isMerge = isMergeObject(line);
-    val = alias ? alias : val;
-
-    if(isMerge){
-      currentRes = putMerge(line, currentRes);
-    }
-    else if(val){
-      setAnchorInline(line, 'array');
-      currentRes.push(adjustValType(val));
-    }
-    else{
-      if(alias){
-         currentRes.push(alias);
-      }
-      else{
-        var child = createYml(option);
-        setAnchorObject(line, child);
-        currentRes.push(child);
-      }
-    }
-    return currentRes;
-  }
-
-  function putHash(line, currentRes, nextLine){
-    var key = line.match(/^\s*([^\:]+)\:/)[1];
-    var val = getVal(line, 'hash');
-    var alias = getAlias(line);
-    var option = getOptionOfString(line);
-    var isMerge = isMergeObject(line);
-    val = alias ? alias : val;
-
-    if(isMerge){
-      currentRes = putMerge(line, currentRes);
-    }
-    else if(val){
-      setAnchorInline(line, 'hash');
-      currentRes[key] = adjustValType(val);
-    }
-    else if(alias){
-         currentRes[key] = alias;
-    }
-    else if(getIndent(line) >= getIndent(nextLine)){
-        currentRes[key] = null;
-    }
-    else{
-      var child = createYml(option);
-      setAnchorObject(line, child);
-      currentRes[key] = child;
-    }
-    return currentRes;
-  }
-
-  function putString(line, currentRes, option){
-    var val = line.replace(/^\s+/, '');
-    var newLineChar = ' ';
-    if(option && option.match(/\|/)) newLineChar = '\n';
-    //last
-    if(getIndent(ymlArray[i]) > getIndent(ymlArray[i+1])){
-      newLineChar = '\n';
-      if(option && option.match(/(\|\-|\>\-)/)) newLineChar = '';
-    }
-    return currentRes += val + newLineChar;
-  }
-
-  function putMerge(line, currentRes){
-    var key = line.match(/\*([^\s]+)/)[1];
-    var val = anchors[key] ? anchors[key] : null;
-    if(!val) return currentRes;
-
-    if(isArray(val)){
-      if(!isArray(currentRes)) currentRes = [];
-      currentRes.push(adjustValType(val));
-    }
-    else{
-      if(typeof currentRes != 'object' || isArray(currentRes)) currentRes = {};
-      for(var key in val){
-        currentRes[key] = val[key];
-      }
-    }
-    return currentRes;
   }
 
   function adjustValType(val){
@@ -208,46 +112,13 @@ var Y2J = function(ymlFile){
     return String(val);
   }
 
-  function setAnchorInline(line, type){
-    if(!line.match(/&[^\s]+\s?/)) return;
-    var anchor = line.match(/&([^\s]+)/)[1];
-    var val = getVal(line, type);
-    anchors[anchor] = val;
-    return;
+  function getVal(line){
+    line = line.replace(/^\s*\-\s?/, '');
+    line = line.replace(/^\s*[^\:\s]+\:\s?/, '');
+    return adjustValType(line);
   }
 
-  function setAnchorObject(line, object){
-    if(!line.match(/\s*&[^\s]+/)) return;
-    var anchor = line.match(/\s*&([^\s]+)/)[1];
-    anchors[anchor] = object;
-    return;
-  }
-
-  function getVal(line, type){
-    if(type == 'array') line = line.replace(/^\s*\-\s?/, '');
-    if(type == 'hash') line = line.replace(/^\s*[^\:\s]+\:\s?/, '');
-    return line.replace(/^[\|\>][\-\+]?/, '') // | |- >+ etc
-                .replace(/^&[^\s]+\s?/, '') // &anchor
-                .replace(/^\*[^\s]+/, '') // *alias
-                .replace(/^\<\<\:\s\*[^\s]+\s*/, '')
-                .replace(/^\"(.*)\"$/, '$1'); // <<: *alias
-  }
-
-  function getAlias(line){
-    if(!line.match(/\s\*[^\s]+/)) return null;
-    var alias = line.match(/\s\*([^\s]+)/)[1];
-    return anchors[alias] ? anchors[alias] : null;
-  }
-
-  function isMergeObject(line){
-    return line.match(/\<\<\:\s\*/) ? true : false;
-  }
-
-  function isArray(obj) {
-    return Object.prototype.toString.call(obj) === '[object Array]';
-  }
-
-  function getOptionOfString(line){
-    return line.match(/\s([\|\>][\-\+]?)/) ? line.match(/\s([\|\>][\-\+]?)/)[1] : null;
+  function getKey(line){
+    return line && line.match(/^\s*([^\:]+)\:/) ? line.match(/^\s*([^\:]+)\:/)[1] : null;
   }
 };
