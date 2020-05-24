@@ -1,6 +1,6 @@
 /*ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ ﾟ･*:.｡..｡.:*･ﾟ
 
-  Y2J ver1.1
+  Y2J ver1.2
   Y2J converts Yaml to Json
 
   Licensed under GNU General Public License v2.0
@@ -21,6 +21,7 @@ var Y2J = function(ymlFile){
   var i = -1;
 
   var json = createYml();
+
   var time = new Date().getTime() - startTime;
   console.log('mili seconds：' + time);
   return json;
@@ -105,7 +106,7 @@ var Y2J = function(ymlFile){
     if(typeof val == 'object') return val;
     if(val.match(/^(0x)?\-?\d+(,?\d{3})*(\.\d+)?$/)) return Number(val);
     if(val.match(/^\d{4}\-\d{2}\-\d{2}([\sT]\d{2}\:\d{2}\:\d{2})?/)) return new Date(val);
-    if(val.match(/^\[.*\]$/) || val.match(/^\{.*\}$/)) return eval("(" + val + ")");
+    //if(val.match(/^\[.*\]$/) || val.match(/^\{.*\}$/)) return eval("(" + val + ")");
     if(val == 'true' || val == 'yes' || val == 'on') return true;
     if(val == 'false' || val == 'no' || val == 'off') return false;
     if(val == 'null' || val == '~' || val == '') return null;
